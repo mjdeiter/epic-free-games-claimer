@@ -1,0 +1,55 @@
+{
+  "manifest_version": 3,
+  "name": "Epic Free Games Claimer",
+  "version": "0.1.1",
+  "description": "Checks Epic's weekly free games and claims them using your existing logged-in session.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "epic-free-games@mjdeiter",
+      "strict_min_version": "140.0",
+      "data_collection_permissions": {
+        "required": [
+          "none"
+        ]
+      }
+    },
+    "gecko_android": {
+      "strict_min_version": "142.0"
+    }
+  },
+  "permissions": [
+    "alarms",
+    "storage",
+    "notifications",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://store.epicgames.com/*",
+    "https://store-site-backend-static.ak.epicgames.com/*"
+  ],
+  "background": {
+    "scripts": [
+      "background.js"
+    ]
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://store.epicgames.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "all_frames": true,
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "Check Epic free games now",
+    "default_icon": "icon.svg"
+  },
+  "icons": {
+    "48": "icon.svg",
+    "96": "icon.svg"
+  }
+}
