@@ -5,7 +5,7 @@ A Manifest V3 extension for Floorp/Firefox that checks the Epic Games Store week
 ## How it works
 
 - A background event page polls Epic's public free-games promotions endpoint every 3 hours and on browser startup.
-- Each new free game opens in a background tab. A content script clicks Get, then I Agree and Place Order in the checkout frame.
+- Each new free game opens in a tab with lang=en-US. A content script checks you are signed in, dismisses age and Device not supported dialogs, clicks Get, then I Accept and Place Order in the checkout frame. It only clicks Get when the button says Get, never Buy Now.
 - Claimed offer IDs are stored so nothing is retried. Failures are capped at 3 attempts per game.
 - Every check ends in a notification. The last 40 events are kept in `storage.local.log` for debugging.
 
@@ -22,6 +22,6 @@ Bump `version` in manifest.json before each re-sign, because AMO rejects repeate
 ## Notes
 
 - You must already be logged in to Epic in the same browser profile. The extension never stores credentials.
-- A captcha or login wall stops the claim and notifies you instead of trying to bypass it.
+- A captcha or login wall stops the claim and notifies you instead of trying to bypass it. After a login failure it stops auto-retrying for 12 hours; click the toolbar button after logging in to resume.
 - Epic's endpoint is unofficial and the checkout selectors can change. They live in the SELECTORS block of content.js.
 - Automating purchases may be against Epic's terms. Use on your own account at your own risk.
