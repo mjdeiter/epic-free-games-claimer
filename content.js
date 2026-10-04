@@ -112,8 +112,11 @@ function describeScreen() {
 
 // ---- Checkout loop ---------------------------------------------------------------
 
+const CAPTCHA_WAIT_MS = 150000; // how long to wait for the person to solve a captcha
+
 async function completeCheckout(timeoutMs) {
-  const end = Date.now() + timeoutMs;
+  let end = Date.now() + timeoutMs;
+  let captchaSeen = false;
   const clicked = new Set();
 
   while (Date.now() < end) {
@@ -121,7 +124,16 @@ async function completeCheckout(timeoutMs) {
 
     if (docs.some((d) => SELECTORS.successText.test(d.body?.innerText ?? ""))) return "claimed";
     if (SELECTORS.ownedText.test(ctaLabel())) return "claimed";
-    if (docs.some((d) => bigVisible(d.querySelector(SELECTORS.captchaFrame)))) return "captcha";
+    if (docs.some((d) => bigVisible(d.querySelector(SELECTORS.captchaFrame)))) {
+      // Captchas are for the person to solve. Bring the tab forward, wait, and resume once it clears.
+      if (!captchaSeen) {
+        captchaSeen = true;
+        await browser.runtime.sendMessage({ type: "captcha-wait" });
+        end = Math.max(end, Date.now() + CAPTCHA_WAIT_MS);
+      }
+      await sleep(500);
+      continue;
+    }
 
     const gate = gateButton(docs);
     if (gate) {
@@ -155,7 +167,7 @@ async function completeCheckout(timeoutMs) {
 
     await sleep(250);
   }
-  return null;
+  return captchaSeen ? "captcha" : null;
 }
 
 // ---- Main flow -------------------------------------------------------------------

@@ -1,4 +1,4 @@
-// Epic Free Games Claimer - background event page (MV3, Firefox/Floorp) v0.2.0
+// Epic Free Games Claimer - background event page (MV3, Firefox/Floorp) v0.2.1
 //
 // All state lives in storage.local because MV3 event pages get suspended.
 // Never rely on in-memory variables surviving between events.
@@ -10,6 +10,7 @@ const API =
 const STORE = "https://store.epicgames.com/en-US";
 const CHECK_EVERY_MIN = 180;
 const CLAIM_TIMEOUT_MIN = 3;
+const CAPTCHA_WAIT_MIN = 4; // claim timeout while waiting for a captcha to be solved
 const STALE_MS = 6 * 60 * 1000;
 const MAX_ATTEMPTS = 3;
 const LOGIN_BACKOFF_MS = 12 * 60 * 60 * 1000; // stop auto-retrying for 12h after a login failure
@@ -173,7 +174,8 @@ async function finish(status, detail = "") {
   if (!cur) return;
   await browser.alarms.clear("claim-timeout");
   await set({ current: null });
-  if (cur.tabId != null) browser.tabs.remove(cur.tabId).catch(() => {});
+  // An unsolved captcha leaves the tab open so the person can finish the claim by hand.
+  if (cur.tabId != null && status !== "captcha") browser.tabs.remove(cur.tabId).catch(() => {});
   await log(`${cur.title}: ${status}${detail ? " - " + detail : ""}`);
 
   if (status === "claimed" || status === "already-owned") {
@@ -199,7 +201,7 @@ async function finish(status, detail = "") {
     await set({ attempts });
     const why =
       {
-        captcha: "A captcha needs you - open the store page and claim it manually.",
+        captcha: "The captcha wasn't solved in time. The tab is still open - solve it there, or click the toolbar button to try again.",
         timeout: "Couldn't confirm the claim.",
         error: "Unexpected page state. Epic may have changed its layout.",
       }[status] ?? "Claim failed.";
@@ -232,6 +234,16 @@ browser.runtime.onMessage.addListener((msg, sender) => {
   const tabId = sender.tab?.id;
   if (msg.type === "claim-context") {
     return get("current", null).then((cur) => ({ active: !!cur && cur.tabId === tabId }));
+  }
+  if (msg.type === "captcha-wait") {
+    return get("current", null).then(async (cur) => {
+      if (!cur || cur.tabId !== tabId) return;
+      browser.alarms.create("claim-timeout", { delayInMinutes: CAPTCHA_WAIT_MIN });
+      await log(`${cur.title}: captcha shown, waiting for you`);
+      const tab = await browser.tabs.update(tabId, { active: true }).catch(() => null);
+      if (tab) browser.windows.update(tab.windowId, { focused: true, drawAttention: true }).catch(() => {});
+      notify("Captcha needs you", `Solve it in the open tab to finish claiming ${cur.title}.`);
+    });
   }
   if (msg.type === "claim-note") {
     return get("current", null).then((cur) => {
