@@ -1,4 +1,4 @@
-// Epic Free Games Claimer - background event page (MV3, Firefox/Floorp) v0.2.1
+// Epic Free Games Claimer - background event page (MV3, Firefox/Floorp) v0.2.2
 //
 // All state lives in storage.local because MV3 event pages get suspended.
 // Never rely on in-memory variables surviving between events.

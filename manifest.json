@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Epic Free Games Claimer",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Checks Epic's weekly free games and claims them using your existing logged-in session.",
   "browser_specific_settings": {
     "gecko": {

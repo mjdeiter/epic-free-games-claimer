@@ -35,6 +35,20 @@ const bigVisible = (el) => {
   return !!r && r.width > 100 && r.height > 100;
 };
 
+// An hCaptcha challenge frame can sit in the DOM at full size while hidden or auto-passing, so a
+// size check alone gives false alarms. Require it (and every ancestor) to be actually showing.
+function challengeShowing(doc) {
+  const el = doc.querySelector(SELECTORS.captchaFrame);
+  if (!bigVisible(el)) return false;
+  const view = doc.defaultView;
+  for (let n = el; n && n.nodeType === 1; n = n.parentElement) {
+    const s = view.getComputedStyle(n);
+    if (s.display === "none" || s.visibility === "hidden" || parseFloat(s.opacity) < 0.1) return false;
+  }
+  const r = el.getBoundingClientRect();
+  return r.bottom > 0 && r.right > 0 && r.top < view.innerHeight && r.left < view.innerWidth;
+}
+
 async function waitFor(fn, timeoutMs, stepMs = 500) {
   const end = Date.now() + timeoutMs;
   while (Date.now() < end) {
@@ -113,10 +127,12 @@ function describeScreen() {
 // ---- Checkout loop ---------------------------------------------------------------
 
 const CAPTCHA_WAIT_MS = 150000; // how long to wait for the person to solve a captcha
+const CAPTCHA_GRACE_MS = 12000; // a challenge that clears on its own within this is not worth interrupting for
 
 async function completeCheckout(timeoutMs) {
   let end = Date.now() + timeoutMs;
   let captchaSeen = false;
+  let captchaSince = 0;
   const clicked = new Set();
 
   while (Date.now() < end) {
@@ -124,15 +140,21 @@ async function completeCheckout(timeoutMs) {
 
     if (docs.some((d) => SELECTORS.successText.test(d.body?.innerText ?? ""))) return "claimed";
     if (SELECTORS.ownedText.test(ctaLabel())) return "claimed";
-    if (docs.some((d) => bigVisible(d.querySelector(SELECTORS.captchaFrame)))) {
-      // Captchas are for the person to solve. Bring the tab forward, wait, and resume once it clears.
-      if (!captchaSeen) {
+    if (docs.some(challengeShowing)) {
+      // Captchas are for the person to solve. Give an auto-passing one a few seconds to clear; if it
+      // stays up, bring the tab forward, wait, and resume once it goes away.
+      captchaSince ||= Date.now();
+      if (!captchaSeen && Date.now() - captchaSince >= CAPTCHA_GRACE_MS) {
         captchaSeen = true;
         await browser.runtime.sendMessage({ type: "captcha-wait" });
         end = Math.max(end, Date.now() + CAPTCHA_WAIT_MS);
       }
       await sleep(500);
       continue;
+    }
+    if (captchaSince) {
+      await note(`captcha frame gone after ${Math.round((Date.now() - captchaSince) / 1000)}s`);
+      captchaSince = 0;
     }
 
     const gate = gateButton(docs);
